@@ -2,7 +2,7 @@ import streamlit as st
 import openai
 from dotenv import load_dotenv
 import os
-import random
+import re
 
 # Load API Key dari .env
 load_dotenv()
@@ -32,11 +32,6 @@ def generate_exercise(prompt, exercise_type, num_questions, difficulty, creativi
         # Memisahkan soal dan jawaban sebagai daftar
         questions, answers = parse_exercise_and_answers(exercise_content, num_questions)
         
-        # Acak soal-soal tersebut
-        paired_questions = list(zip(questions, answers))
-        random.shuffle(paired_questions)
-        questions, answers = zip(*paired_questions)
-        
         return questions, answers
     
     except Exception as e:
@@ -44,30 +39,27 @@ def generate_exercise(prompt, exercise_type, num_questions, difficulty, creativi
 
 # Fungsi untuk memisahkan soal dan jawaban sebagai daftar
 def parse_exercise_and_answers(content, num_questions):
-    # Memisahkan soal dan jawaban berdasarkan pola umum
+    # Memisahkan soal dan jawaban menggunakan regex untuk memastikan soal dan jawaban sesuai
     questions = []
     answers = []
     
-    # Split berdasarkan tanda nomor soal (misal: "1.", "2.", dsb.)
-    split_content = content.split('\n')
-    question = ""
-    answer = ""
-    
-    for line in split_content:
-        if line.strip().startswith("Jawaban") or line.strip().lower().startswith("answer"):
-            answer = line.split(':', 1)[-1].strip()  # Ambil jawaban setelah ":"
-            answers.append(answer)
-        elif line.strip().isdigit() and question:  # Deteksi soal baru
-            questions.append(question.strip())
-            question = line
-        else:
-            question += f" {line.strip()}"
-    
-    # Tambahkan soal terakhir jika belum ditambahkan
-    if question:
-        questions.append(question.strip())
+    # Gunakan regex untuk menangkap pola soal dan jawaban
+    question_pattern = re.compile(r"\d+\.\s(.+?)(?=\d+\.|$)", re.DOTALL)  # Mencari tiap soal
+    answer_pattern = re.compile(r"Jawaban:\s*(.+)", re.DOTALL)  # Mencari jawaban setelah kata "Jawaban:"
 
-    # Jika jumlah soal atau jawaban kurang, tambahkan placeholder
+    # Cari soal dalam teks
+    found_questions = question_pattern.findall(content)
+    for q in found_questions:
+        question_text = q.strip()
+        if "Jawaban" in question_text:
+            question, answer = question_text.split("Jawaban:", 1)
+            questions.append(question.strip())
+            answers.append(answer.strip())
+        else:
+            questions.append(question_text)
+            answers.append("Jawaban tidak tersedia")  # Placeholder jika jawaban tidak ditemukan
+
+    # Pastikan jumlah soal/jawaban sesuai dengan yang diminta
     questions = questions[:num_questions] + ["Soal tambahan"] * (num_questions - len(questions))
     answers = answers[:num_questions] + ["Jawaban tambahan"] * (num_questions - len(answers))
     
